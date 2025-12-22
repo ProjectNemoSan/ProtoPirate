@@ -1,14 +1,9 @@
 #pragma once
 
-#include <lib/subghz/protocols/base.h>
+#include "kia_generic.h"
 
 #define KIA_PROTOCOL_V3_V4_NAME "Kia V3/V4"
 
-typedef struct SubGhzProtocolDecoderKiaV3V4 SubGhzProtocolDecoderKiaV3V4;
-typedef struct SubGhzProtocolEncoderKiaV3V4 SubGhzProtocolEncoderKiaV3V4;
-
-extern const SubGhzProtocolDecoder kia_protocol_v3_v4_decoder;
-extern const SubGhzProtocolEncoder kia_protocol_v3_v4_encoder;
 extern const SubGhzProtocol kia_protocol_v3_v4;
 
 void* kia_protocol_decoder_v3_v4_alloc(SubGhzEnvironment* environment);
@@ -20,15 +15,6 @@ SubGhzProtocolStatus kia_protocol_decoder_v3_v4_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset);
-SubGhzProtocolStatus kia_protocol_decoder_v3_v4_deserialize(
-    void* context,
-    FlipperFormat* flipper_format);
+SubGhzProtocolStatus
+    kia_protocol_decoder_v3_v4_deserialize(void* context, FlipperFormat* flipper_format);
 void kia_protocol_decoder_v3_v4_get_string(void* context, FuriString* output);
-
-void* kia_protocol_encoder_v3_v4_alloc(SubGhzEnvironment* environment);
-void kia_protocol_encoder_v3_v4_free(void* context);
-SubGhzProtocolStatus kia_protocol_encoder_v3_v4_deserialize(
-    void* context,
-    FlipperFormat* flipper_format);
-void kia_protocol_encoder_v3_v4_stop(void* context);
-LevelDuration kia_protocol_encoder_v3_v4_yield(void* context);

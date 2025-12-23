@@ -333,18 +333,25 @@ void protopirate_scene_emulate_on_enter(void *context)
             {
                 if(protocol->encoder && protocol->encoder->alloc) {
                     FURI_LOG_I(TAG, "Protocol has encoder support");
-                    FURI_LOG_I(TAG, "Encoder alloc function at: %p", protocol->encoder->alloc);
-                    FURI_LOG_I(TAG, "Encoder free function at: %p", protocol->encoder->free);
-                    FURI_LOG_I(TAG, "Encoder deserialize function at: %p", protocol->encoder->deserialize);
-                    FURI_LOG_I(TAG, "Encoder yield function at: %p", protocol->encoder->yield);
+
+                    // Read radio preset from file, default to FM476
+                    FuriString* preset_str = furi_string_alloc();
+                    flipper_format_rewind(ff);
+                    if(!flipper_format_read_string(ff, "Preset", preset_str)) {
+                        FURI_LOG_W(TAG, "Preset not found, using default FM476");
+                        furi_string_set(preset_str, "FM476");
+                    }
+                    const char* preset_name = furi_string_get_cstr(preset_str);
                     
                     // Make sure the protocol registry is set in the environment
                     subghz_environment_set_protocol_registry(
                         app->txrx->environment, &protopirate_protocol_registry);
                     
-                    // Try to create transmitter
+                    // Try to create transmitter using the preset name
                     emulate_context->transmitter = subghz_transmitter_alloc_init(
-                        app->txrx->environment, proto_name);
+                        app->txrx->environment, preset_name);
+
+                    furi_string_free(preset_str);
 
                     if (emulate_context->transmitter)
                     {

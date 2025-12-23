@@ -622,11 +622,28 @@ LevelDuration subghz_protocol_encoder_vw_yield(void *context)
         }
         if (instance->data_bit_index < 80)
         {
-            uint64_t combined_data = instance->generic.data;
-            if (instance->data_bit_index >= 64) {
-                combined_data = instance->data_2;
+            // Calculate which bit of the stream we are sending (MSB first)
+            uint8_t stream_bit_pos = 79 - instance->data_bit_index;
+            bool bit = false;
+
+            // Map stream bit position to storage fields based on decoder logic:
+            // Bits 79..72 -> data_2 bits 15..8 (Type)
+            // Bits 71..8  -> generic.data bits 63..0 (Key)
+            // Bits 7..0   -> data_2 bits 7..0 (Check/Btn)
+
+            if (stream_bit_pos >= 72)
+            {
+                bit = (instance->data_2 >> (stream_bit_pos - 64)) & 1;
             }
-            bool bit = (combined_data >> (79 - instance->data_bit_index)) & 1;
+            else if (stream_bit_pos >= 8)
+            {
+                bit = (instance->generic.data >> (stream_bit_pos - 8)) & 1;
+            }
+            else
+            {
+                bit = (instance->data_2 >> stream_bit_pos) & 1;
+            }
+
             instance->data_bit_index++;
             if (bit)
             {

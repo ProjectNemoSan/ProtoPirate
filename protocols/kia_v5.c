@@ -87,6 +87,14 @@ const SubGhzProtocol kia_protocol_v5 = {
     .encoder = &kia_protocol_v5_encoder,
 };
 
+static uint8_t reverse8(uint8_t b)
+{
+    b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+    b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+    b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+    return b;
+}
+
 static void kia_v5_add_raw_bit(SubGhzProtocolDecoderKiaV5 *instance, bool bit)
 {
     if (instance->raw_bit_count < 256)
@@ -406,6 +414,42 @@ void kia_protocol_decoder_v5_get_string(void *context, FuriString *output)
 }
 
 // Encoder implementation
+static void subghz_protocol_kia_v5_update_data(SubGhzProtocolEncoderKiaV5 *instance)
+{
+    // 1. Current data to yek (reverse of the decoder logic)
+    uint64_t yek = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        uint8_t byte = (instance->generic.data >> (i * 8)) & 0xFF;
+        uint8_t reversed = reverse8(byte);
+        yek |= ((uint64_t)reversed << ((7 - i) * 8));
+    }
+
+    // 2. Update fields in yek
+    // Cnt: bits 15..0
+    yek &= ~0xFFFFULL;
+    yek |= (instance->generic.cnt & 0xFFFF);
+
+    // Serial: bits 59..33 (27 bits)
+    // Mask out bits 59..33: 0x7FFFFFF << 33
+    yek &= ~(0x7FFFFFFULL << 33);
+    yek |= ((uint64_t)instance->generic.serial << 33);
+
+    // Btn: bits 63..61
+    // Mask out bits 63..61: 0x7 << 61
+    yek &= ~(0x7ULL << 61);
+    yek |= ((uint64_t)(instance->generic.btn & 0x07) << 61);
+
+    // 3. Convert yek back to generic.data
+    instance->generic.data = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        uint8_t reversed = (yek >> ((7 - i) * 8)) & 0xFF;
+        uint8_t original = reverse8(reversed);
+        instance->generic.data |= ((uint64_t)original << (i * 8));
+    }
+}
+
 void *kia_protocol_encoder_v5_alloc(SubGhzEnvironment *environment)
 {
     UNUSED(environment);
@@ -432,7 +476,7 @@ SubGhzProtocolStatus kia_protocol_encoder_v5_deserialize(void *context, FlipperF
     if (ret == SubGhzProtocolStatusOk)
     {
         uint32_t temp_val;
-        // Restore raw data for exact replay
+        // Restore raw data for exact replay if available
         if (flipper_format_read_uint32(flipper_format, "DataHi", &temp_val, 1))
         {
             instance->generic.data = ((uint64_t)temp_val << 32);
@@ -440,6 +484,26 @@ SubGhzProtocolStatus kia_protocol_encoder_v5_deserialize(void *context, FlipperF
         if (flipper_format_read_uint32(flipper_format, "DataLo", &temp_val, 1))
         {
             instance->generic.data |= temp_val;
+        }
+
+        // Read specific fields to allow dynamic updates
+        bool fields_present = true;
+        if (!flipper_format_read_uint32(flipper_format, "Serial", &instance->generic.serial, 1))
+            fields_present = false;
+
+        if (flipper_format_read_uint32(flipper_format, "Btn", &temp_val, 1))
+            instance->generic.btn = temp_val;
+        else
+            fields_present = false;
+
+        if (flipper_format_read_uint32(flipper_format, "Cnt", &temp_val, 1))
+            instance->generic.cnt = temp_val;
+        else
+            fields_present = false;
+
+        // If fields are present, ensure they are reflected in the data
+        if (fields_present) {
+            subghz_protocol_kia_v5_update_data(instance);
         }
     }
 
